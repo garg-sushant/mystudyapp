@@ -1,37 +1,74 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { Card, Button, Modal, Form, ListGroup, ProgressBar } from 'react-bootstrap'
-import { addGoal, updateGoal, deleteGoal, updateProgress } from '../redux/slices/goalsSlice'
+import { Card, Button, Modal, Form, ListGroup, ProgressBar, Alert } from 'react-bootstrap'
+import { addGoal, updateGoal, deleteGoal, setGoals } from '../redux/slices/goalsSlice'
+import { api } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { logout } from '../redux/slices/authSlice'
 
 const Goals = () => {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { goals } = useSelector(state => state.goals)
+  const { token } = useSelector(state => state.auth)
   const [showModal, setShowModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     progress: 0
   })
 
+  // Initial load from backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/goals')
+      .then(data => {
+        const normalized = data.map(g => ({ ...g, id: g._id || g.id }))
+        dispatch(setGoals(normalized))
+      })
+      .catch(err => {
+        console.error('Failed to load goals', err)
+        if (err.message?.toLowerCase().includes('token')) {
+          dispatch(logout())
+          navigate('/login')
+        }
+      })
+  }, [dispatch, token, navigate])
+
   const pendingGoals = goals.filter(goal => !goal.completed)
   const completedGoals = goals.filter(goal => goal.completed)
   const totalGoals = goals.length
   const completionRate = totalGoals > 0 ? Math.round((completedGoals.length / totalGoals) * 100) : 0
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (editingGoal) {
-      dispatch(updateGoal({ id: editingGoal.id, updates: formData }))
-    } else {
-      dispatch(addGoal(formData))
+    setError('')
+    setLoading(true)
+    try {
+      if (editingGoal) {
+        const updated = await api.put(`/goals/${editingGoal._id || editingGoal.id}`, formData)
+        dispatch(updateGoal({ id: updated._id || updated.id, updates: updated }))
+        handleClose()
+      } else {
+        const created = await api.post('/goals', formData)
+        dispatch(addGoal({ ...created, id: created._id || created.id }))
+        handleClose()
+      }
+    } catch (err) {
+      console.error('Failed to save goal', err)
+      setError(err.message || 'Failed to save goal. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    handleClose()
   }
 
   const handleClose = () => {
     setShowModal(false)
     setEditingGoal(null)
+    setError('')
     setFormData({ title: '', description: '', progress: 0 })
   }
 
@@ -47,16 +84,26 @@ const Goals = () => {
 
   const handleDelete = (goalId) => {
     if (window.confirm('Are you sure you want to delete this goal?')) {
-      dispatch(deleteGoal(goalId))
+      api.del(`/goals/${goalId}`)
+        .then(() => dispatch(deleteGoal(goalId)))
+        .catch(err => console.error('Failed to delete goal', err))
     }
   }
 
   const handleToggleComplete = (goal) => {
-    dispatch(updateGoal({ id: goal.id, updates: { completed: !goal.completed } }))
+    const updates = { completed: !goal.completed }
+    api.put(`/goals/${goal._id || goal.id}`, updates)
+      .then(updated => dispatch(updateGoal({ id: updated._id || updated.id, updates: updated })))
+      .catch(err => console.error('Failed to toggle complete', err))
   }
 
   const handleProgressUpdate = (goal, newProgress) => {
-    dispatch(updateProgress({ goalId: goal.id, progress: Math.min(100, Math.max(0, newProgress)) }))
+    const progress = Math.min(100, Math.max(0, newProgress))
+    api.put(`/goals/${goal._id || goal.id}`, { progress })
+      .then(updated => {
+        dispatch(updateGoal({ id: updated._id || updated.id, updates: updated }))
+      })
+      .catch(err => console.error('Failed to update progress', err))
   }
 
   return (
@@ -160,6 +207,11 @@ const Goals = () => {
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
+            {error && (
+              <Alert variant="danger" onClose={() => setError('')} dismissible>
+                {error}
+              </Alert>
+            )}
             <Form.Group className="mb-3">
               <Form.Label>Goal Title *</Form.Label>
               <Form.Control
@@ -167,6 +219,7 @@ const Goals = () => {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
+                disabled={loading}
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -176,15 +229,16 @@ const Goals = () => {
                 rows={2}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                disabled={loading}
               />
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
+            <Button variant="secondary" onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit">
-              {editingGoal ? 'Update Goal' : 'Add Goal'}
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading ? 'Saving...' : (editingGoal ? 'Update Goal' : 'Add Goal')}
             </Button>
           </Modal.Footer>
         </Form>

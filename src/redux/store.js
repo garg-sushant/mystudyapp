@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit'
 import scheduleReducer from './slices/scheduleSlice'
 import goalsReducer from './slices/goalsSlice'
 import analyticsReducer from './slices/analyticsSlice'
+import authReducer from './slices/authSlice'
 
 // localStorage middleware
 const localStorageMiddleware = store => next => action => {
@@ -28,6 +29,7 @@ export const store = configureStore({
     schedule: scheduleReducer,
     goals: goalsReducer,
     analytics: analyticsReducer,
+    auth: authReducer,
   },
   preloadedState: loadState(),
   middleware: (getDefaultMiddleware) =>

@@ -1,14 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { Card, Button, Modal, Form, ListGroup, ProgressBar, Row, Col } from 'react-bootstrap'
-import { addTask, updateTask, deleteTask, addStudySession } from '../redux/slices/scheduleSlice'
+import { Card, Button, Modal, Form, ListGroup, ProgressBar, Alert } from 'react-bootstrap'
+import { addTask, updateTask, deleteTask, setTasks } from '../redux/slices/scheduleSlice'
+import { api } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { logout } from '../redux/slices/authSlice'
 
 const Schedule = () => {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { tasks } = useSelector(state => state.schedule)
   const { subjects } = useSelector(state => state.goals)
+  const { token } = useSelector(state => state.auth)
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -16,26 +23,56 @@ const Schedule = () => {
     subject: subjects[0] || '',
     duration: ''
   })
-  const [sessionForm, setSessionForm] = useState({ subject: subjects[0] || '', duration: '', topic: '' })
+
+  // Initial load from backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/tasks')
+      .then(data => {
+        const normalized = data.map(t => ({ ...t, id: t._id || t.id }))
+        dispatch(setTasks(normalized))
+      })
+      .catch(err => {
+        console.error('Failed to load tasks', err)
+        if (err.message?.toLowerCase().includes('token')) {
+          dispatch(logout())
+          navigate('/login')
+        }
+      })
+  }, [dispatch, token, navigate])
 
   const pendingTasks = tasks.filter(task => !task.completed)
   const completedTasks = tasks.filter(task => task.completed)
   const totalTasks = tasks.length
   const completionRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (editingTask) {
-      dispatch(updateTask({ id: editingTask.id, updates: formData }))
-    } else {
-      dispatch(addTask(formData))
+    setError('')
+    setLoading(true)
+    try {
+      if (editingTask) {
+        const payload = { ...formData }
+        const updated = await api.put(`/tasks/${editingTask._id || editingTask.id}`, payload)
+        dispatch(updateTask({ id: updated._id || updated.id, updates: updated }))
+        handleClose()
+      } else {
+        const created = await api.post('/tasks', formData)
+        dispatch(addTask({ ...created, id: created._id || created.id }))
+        handleClose()
+      }
+    } catch (err) {
+      console.error('Failed to save task', err)
+      setError(err.message || 'Failed to save task. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    handleClose()
   }
 
   const handleClose = () => {
     setShowModal(false)
     setEditingTask(null)
+    setError('')
     setFormData({ title: '', description: '', progress: 0, subject: subjects[0] || '', duration: '' })
   }
 
@@ -53,34 +90,24 @@ const Schedule = () => {
 
   const handleDelete = (taskId) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      dispatch(deleteTask(taskId))
+      api.del(`/tasks/${taskId}`)
+        .then(() => dispatch(deleteTask(taskId)))
+        .catch(err => console.error('Failed to delete task', err))
     }
   }
 
   const handleToggleComplete = (task) => {
-    dispatch(updateTask({ id: task.id, updates: { completed: !task.completed } }))
+    const updates = { completed: !task.completed }
+    api.put(`/tasks/${task._id || task.id}`, updates)
+      .then(updated => dispatch(updateTask({ id: updated._id || updated.id, updates: updated })))
+      .catch(err => console.error('Failed to toggle complete', err))
   }
 
   const handleProgressUpdate = (task, newProgress) => {
-    dispatch(updateTask({ id: task.id, updates: { progress: Math.min(100, Math.max(0, newProgress)) } }))
-  }
-
-  // Study Session Form Handlers
-  const handleSessionFormChange = (e) => {
-    const { name, value } = e.target
-    setSessionForm(f => ({ ...f, [name]: value }))
-  }
-  const handleSessionFormSubmit = (e) => {
-    e.preventDefault()
-    if (!sessionForm.subject || !sessionForm.duration) return
-    dispatch(addStudySession({
-      subject: sessionForm.subject,
-      duration: Number(sessionForm.duration),
-      topic: sessionForm.topic,
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString()
-    }))
-    setSessionForm({ subject: subjects[0] || '', duration: '', topic: '' })
+    const updates = { progress: Math.min(100, Math.max(0, newProgress)) }
+    api.put(`/tasks/${task._id || task.id}`, updates)
+      .then(updated => dispatch(updateTask({ id: updated._id || updated.id, updates: updated })))
+      .catch(err => console.error('Failed to update progress', err))
   }
 
   return (
@@ -186,6 +213,11 @@ const Schedule = () => {
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
+            {error && (
+              <Alert variant="danger" onClose={() => setError('')} dismissible>
+                {error}
+              </Alert>
+            )}
             <Form.Group className="mb-3">
               <Form.Label>Task Title *</Form.Label>
               <Form.Control
@@ -193,6 +225,7 @@ const Schedule = () => {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
+                disabled={loading}
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -202,6 +235,7 @@ const Schedule = () => {
                 rows={2}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                disabled={loading}
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -210,6 +244,7 @@ const Schedule = () => {
                 value={formData.subject}
                 onChange={e => setFormData({ ...formData, subject: e.target.value })}
                 required
+                disabled={loading}
               >
                 {subjects.map(subj => <option key={subj} value={subj}>{subj}</option>)}
               </Form.Select>
@@ -222,15 +257,16 @@ const Schedule = () => {
                 value={formData.duration}
                 onChange={e => setFormData({ ...formData, duration: e.target.value })}
                 required
+                disabled={loading}
               />
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
+            <Button variant="secondary" onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit">
-              {editingTask ? 'Update Task' : 'Add Task'}
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading ? 'Saving...' : (editingTask ? 'Update Task' : 'Add Task')}
             </Button>
           </Modal.Footer>
         </Form>

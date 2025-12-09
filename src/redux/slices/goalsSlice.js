@@ -11,30 +11,36 @@ const goalsSlice = createSlice({
   name: 'goals',
   initialState,
   reducers: {
+    setGoals: (state, action) => {
+      state.goals = action.payload
+    },
     addGoal: (state, action) => {
+      const incoming = action.payload || {}
+      const id = incoming.id || incoming._id || Date.now()
       state.goals.push({
-        id: Date.now(),
-        ...action.payload,
-        progress: 0,
-        createdAt: new Date().toISOString(),
-        completed: false
+        id,
+        _id: incoming._id,
+        ...incoming,
+        progress: typeof incoming.progress === 'number' && !isNaN(incoming.progress) ? incoming.progress : 0,
+        createdAt: incoming.createdAt || new Date().toISOString(),
+        completed: typeof incoming.completed === 'boolean' ? incoming.completed : false
       })
     },
     updateGoal: (state, action) => {
       const { id, updates } = action.payload
-      const goalIndex = state.goals.findIndex(goal => goal.id === id)
+      const goalIndex = state.goals.findIndex(goal => (goal.id || goal._id) === id)
       if (goalIndex !== -1) {
-        const prevCompleted = state.goals[goalIndex].completed;
-        const newCompleted = typeof updates.completed === 'boolean' ? updates.completed : prevCompleted;
-        let newProgress = typeof updates.progress === 'number' && !isNaN(updates.progress) ? updates.progress : (state.goals[goalIndex].progress || 0);
+        const prevCompleted = state.goals[goalIndex].completed
+        const newCompleted = typeof updates.completed === 'boolean' ? updates.completed : prevCompleted
+        let newProgress = typeof updates.progress === 'number' && !isNaN(updates.progress) ? updates.progress : (state.goals[goalIndex].progress || 0)
         if (prevCompleted && !newCompleted && newProgress === 100) {
-          newProgress = 99;
+          newProgress = 99
         }
-        state.goals[goalIndex] = { ...state.goals[goalIndex], ...updates, progress: newProgress, completed: newCompleted };
+        state.goals[goalIndex] = { ...state.goals[goalIndex], ...updates, progress: newProgress, completed: newCompleted }
       }
     },
     deleteGoal: (state, action) => {
-      state.goals = state.goals.filter(goal => goal.id !== action.payload)
+      state.goals = state.goals.filter(goal => (goal.id || goal._id) !== action.payload)
     },
     updateProgress: (state, action) => {
       const { goalId, progress } = action.payload
@@ -65,6 +71,7 @@ const goalsSlice = createSlice({
 
 export const {
   addGoal,
+  setGoals,
   updateGoal,
   deleteGoal,
   updateProgress,

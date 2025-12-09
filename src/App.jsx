@@ -8,6 +8,8 @@ import Dashboard from './components/Dashboard'
 import Schedule from './components/Schedule'
 import Goals from './components/Goals'
 import Analytics from './components/Analytics'
+import Login from './components/Login'
+import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
 function App() {
@@ -18,10 +20,39 @@ function App() {
           <AppNavbar />
           <main>
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/schedule" element={<Schedule />} />
-              <Route path="/goals" element={<Goals />} />
-              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/schedule"
+                element={
+                  <ProtectedRoute>
+                    <Schedule />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/goals"
+                element={
+                  <ProtectedRoute>
+                    <Goals />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <Analytics />
+                  </ProtectedRoute>
+                }
+              />
             </Routes>
           </main>
           <Footer />

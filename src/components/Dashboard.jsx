@@ -1,19 +1,49 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { Card, Row, Col, ProgressBar, Badge, Button, ListGroup } from 'react-bootstrap'
 import { calculateAnalytics } from '../redux/slices/analyticsSlice'
-import { addStudySession } from '../redux/slices/scheduleSlice'
+import { addStudySession, setStudySessions } from '../redux/slices/scheduleSlice'
+import { api } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { logout } from '../redux/slices/authSlice'
 import { useState } from 'react'
 
 const Dashboard = () => {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { tasks, studySessions, currentSession } = useSelector(state => state.schedule)
   const { goals, subjects } = useSelector(state => state.goals)
   const { productivityScore, subjectStats } = useSelector(state => state.analytics)
+  const { token } = useSelector(state => state.auth)
   // Default goals since settings are removed
   const dailyGoal = 120 // 2 hours default
   const weeklyGoal = 840 // 14 hours default
   const [sessionForm, setSessionForm] = useState({ subject: subjects[0] || '', duration: '', topic: '' })
+
+  // Load study sessions from backend
+  useEffect(() => {
+    if (!token) return
+    const loadSessions = async () => {
+      try {
+        const data = await api.get('/sessions')
+        // Normalize data and ensure duration is a number
+        const normalized = data.map(s => ({ 
+          ...s, 
+          id: s._id || s.id,
+          duration: Number(s.duration) || 0,
+          startTime: s.startTime || s.createdAt || new Date().toISOString()
+        }))
+        dispatch(setStudySessions(normalized))
+      } catch (err) {
+        console.error('Failed to load study sessions', err)
+        if (err.message?.toLowerCase().includes('token')) {
+          dispatch(logout())
+          navigate('/login')
+        }
+      }
+    }
+    loadSessions()
+  }, [dispatch, token, navigate])
 
   useEffect(() => {
     dispatch(calculateAnalytics({ studySessions, goals, tasks }))
@@ -24,32 +54,91 @@ const Dashboard = () => {
     setSessionForm(f => ({ ...f, [name]: value }))
   }
 
-  const handleSessionFormSubmit = (e) => {
+  const handleSessionFormSubmit = async (e) => {
     e.preventDefault()
     if (!sessionForm.subject || !sessionForm.duration) return
-    dispatch(addStudySession({
-      subject: sessionForm.subject,
-      duration: Number(sessionForm.duration),
-      topic: sessionForm.topic,
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString()
-    }))
-    setSessionForm({ subject: subjects[0] || '', duration: '', topic: '' })
+    try {
+      const sessionData = {
+        subject: sessionForm.subject,
+        duration: Number(sessionForm.duration),
+        topic: sessionForm.topic,
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      }
+      const created = await api.post('/sessions', sessionData)
+      // Normalize and ensure proper data types
+      const normalizedSession = { 
+        ...created, 
+        id: created._id || created.id, 
+        duration: Number(created.duration) || 0,
+        startTime: created.startTime || created.createdAt || new Date().toISOString()
+      }
+      dispatch(addStudySession(normalizedSession))
+      setSessionForm({ subject: subjects[0] || '', duration: '', topic: '' })
+      // Reload sessions from backend to ensure sync
+      const updatedData = await api.get('/sessions')
+      const normalized = updatedData.map(s => ({ 
+        ...s, 
+        id: s._id || s.id,
+        duration: Number(s.duration) || 0,
+        startTime: s.startTime || s.createdAt || new Date().toISOString()
+      }))
+      dispatch(setStudySessions(normalized))
+    } catch (err) {
+      console.error('Failed to save study session', err)
+      alert(err.message || 'Failed to save study session. Please try again.')
+    }
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const todaySessions = studySessions.filter(session => 
-    session.startTime?.startsWith(today)
-  )
-  const todayTime = todaySessions.reduce((total, session) => total + (session.duration || 0), 0)
+  // Calculate today's study time
+  const todayTime = useMemo(() => {
+    if (!studySessions || studySessions.length === 0) return 0
+    const today = new Date().toISOString().split('T')[0]
+    const todaySessions = studySessions.filter(session => {
+      if (!session.startTime) return false
+      const sessionDate = typeof session.startTime === 'string' 
+        ? session.startTime.split('T')[0]
+        : new Date(session.startTime).toISOString().split('T')[0]
+      return sessionDate === today
+    })
+    return todaySessions.reduce((total, session) => {
+      const duration = Number(session.duration) || 0
+      return total + (isNaN(duration) ? 0 : duration)
+    }, 0)
+  }, [studySessions])
+  
+  // Calculate weekly study time (last 7 days)
+  const weeklyStudyTime = useMemo(() => {
+    if (!studySessions || studySessions.length === 0) return 0
+    const now = new Date()
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const weeklySessions = studySessions.filter(session => {
+      if (!session.startTime) return false
+      try {
+        const sessionDate = new Date(session.startTime)
+        return sessionDate >= weekAgo && !isNaN(sessionDate.getTime())
+      } catch {
+        return false
+      }
+    })
+    return weeklySessions.reduce((total, session) => {
+      const duration = Number(session.duration) || 0
+      return total + (isNaN(duration) ? 0 : duration)
+    }, 0)
+  }, [studySessions])
   
   const pendingTasks = tasks.filter(task => !task.completed)
   const activeGoals = goals.filter(goal => !goal.completed)
   const completedGoals = goals.filter(goal => goal.completed)
 
-  // Calculate total study time as sum of duration of completed tasks
-  const completedTasks = tasks.filter(task => task.completed)
-  const totalStudyTime = completedTasks.reduce((total, task) => total + (Number(task.duration) || 0), 0)
+  // Calculate total study time from all study sessions - ensure proper numeric conversion
+  const totalStudyTime = useMemo(() => {
+    if (!studySessions || !Array.isArray(studySessions) || studySessions.length === 0) return 0
+    return studySessions.reduce((sum, session) => {
+      const duration = Number(session.duration) || 0
+      return sum + (isNaN(duration) ? 0 : duration)
+    }, 0)
+  }, [studySessions])
 
   const getStudySuggestions = () => {
     const suggestions = []
@@ -125,12 +214,13 @@ const Dashboard = () => {
               <Card.Title>Total Study Time</Card.Title>
               <div className="display-6 text-info fw-bold">{formatTime(totalStudyTime)}</div>
               <ProgressBar 
-                now={(totalStudyTime / weeklyGoal) * 100} 
+                now={weeklyGoal > 0 ? Math.min(Math.max((weeklyStudyTime / weeklyGoal) * 100, 0), 100) : 0} 
                 max={100} 
                 className="mt-2"
-                variant={totalStudyTime >= weeklyGoal ? 'success' : 'info'}
+                variant={weeklyStudyTime >= weeklyGoal ? 'success' : 'info'}
+                style={{ height: '20px' }}
               />
-              <small className="text-muted">Weekly Goal: {formatTime(weeklyGoal)}</small>
+              <small className="text-muted d-block mt-1">This Week: {formatTime(weeklyStudyTime)} / {formatTime(weeklyGoal)}</small>
             </Card.Body>
           </Card>
         </Col>
