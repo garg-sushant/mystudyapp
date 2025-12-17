@@ -7,6 +7,7 @@ const TaskSchema = new mongoose.Schema(
     description: { type: String },
     progress: { type: Number, default: 0, min: 0, max: 100 },
     completed: { type: Boolean, default: false },
+    completedAt: { type: Date },
     subject: { type: String },
     duration: { type: Number, default: 0 }, // minutes
     createdAt: { type: Date, default: Date.now }

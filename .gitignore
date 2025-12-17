@@ -8,10 +8,14 @@ node_modules/
 backend/node_modules/
 01vite-project/node_modules/
 
+# ========== Logs ==========
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # If you want to ignore lock files uncomment these:
 # package-lock.json
@@ -47,8 +51,9 @@ backend/.env
 *.ntvs*
 *.njsproj
 *.sln
+*.sw?
 
-# Mac / Windows OS files
+# ========== Mac / Windows OS files ==========
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -56,10 +61,6 @@ Desktop.ini
 # ========== MongoDB local data ==========
 data/
 *.db
-
-# ========== Logs ==========
-logs/
-*.log
 
 # ========== Temporary / cache ==========
 *.tmp

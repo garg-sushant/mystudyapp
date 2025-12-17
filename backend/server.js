@@ -8,6 +8,7 @@ import tasksRouter from './src/routes/tasks.js'
 import goalsRouter from './src/routes/goals.js'
 import sessionsRouter from './src/routes/sessions.js'
 import authRouter from './src/routes/auth.js'
+import streakRouter from './src/routes/streak.js'
 import { auth } from './src/middleware/auth.js'
 import { requestLogger } from './src/middleware/requestLogger.js'
 
@@ -30,6 +31,7 @@ app.use('/api/auth', authRouter)
 app.use('/api/tasks', auth, tasksRouter)
 app.use('/api/goals', auth, goalsRouter)
 app.use('/api/sessions', auth, sessionsRouter)
+app.use('/api/streak', auth, streakRouter)
 
 mongoose
   .connect(MONGODB_URI, { dbName: 'study_planner' })

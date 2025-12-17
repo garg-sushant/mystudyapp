@@ -22,12 +22,23 @@ router.get('/', async (req, res) => {
 // Update
 router.put('/:id', async (req, res) => {
   try {
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      req.body,
-      { new: true }
-    )
+    const task = await Task.findOne({ _id: req.params.id, userId: req.user.id })
     if (!task) return res.status(404).json({ error: 'Task not found' })
+    // apply updates
+    const updates = req.body || {}
+    for (const key of Object.keys(updates)) {
+      task[key] = updates[key]
+    }
+    // handle completedAt when marking complete
+    if (typeof updates.completed === 'boolean') {
+      if (updates.completed && !task.completed) {
+        task.completedAt = new Date()
+      }
+      if (!updates.completed) {
+        task.completedAt = undefined
+      }
+    }
+    await task.save()
     res.json(task)
   } catch (err) {
     res.status(400).json({ error: err.message })
