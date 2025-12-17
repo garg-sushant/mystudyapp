@@ -21,7 +21,7 @@ git reset HEAD 2>$null
 git add .gitignore README.md
 
 # Add frontend files (excluding node_modules and dist)
-git add 01vite-project/
+git add frontend/
 
 # Add backend files (excluding node_modules)
 git add backend/
