@@ -28,26 +28,26 @@ const authHeaders = () => {
 
 export const api = {
   get: (path) =>
-    fetch(`${BASE_URL}${path}`, {
+    fetch(`${BASE_URL}${normalizePath(path)}`, {
       headers: { ...authHeaders() }
     }).then(handleResponse),
 
   post: (path, body) =>
-    fetch(`${BASE_URL}${path}`, {
+    fetch(`${BASE_URL}${normalizePath(path)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body)
     }).then(handleResponse),
 
   put: (path, body) =>
-    fetch(`${BASE_URL}${path}`, {
+    fetch(`${BASE_URL}${normalizePath(path)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body)
     }).then(handleResponse),
 
   del: (path) =>
-    fetch(`${BASE_URL}${path}`, {
+    fetch(`${BASE_URL}${normalizePath(path)}`, {
       method: 'DELETE',
       headers: { ...authHeaders() }
     }).then(handleResponse)
