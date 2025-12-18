@@ -17,14 +17,36 @@ dotenv.config()
 const app = express()
 
 // ===== Middleware =====
-// Allow CORS from the configured frontend origin (or allow all in development)
-const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_URL || ''
-app.use(cors({
-  origin: FRONTEND_URL || true,
+// Safe dynamic CORS: allow explicit FRONTEND_URL(s) and localhost for dev.
+// Set FRONTEND_URL (single) or FRONTEND_URLS (comma-separated) in production.
+const FRONTEND_URL = process.env.FRONTEND_URL || ''
+const FRONTEND_URLS = process.env.FRONTEND_URLS || ''
+const allowedOrigins = new Set()
+if (FRONTEND_URL) allowedOrigins.add(FRONTEND_URL.replace(/\/$/, ''))
+if (FRONTEND_URLS) {
+  FRONTEND_URLS.split(',').map(s => s.trim()).filter(Boolean).forEach(u => allowedOrigins.add(u.replace(/\/$/, '')))
+}
+// always allow common localhost origins for developer convenience
+allowedOrigins.add('http://localhost:5173')
+allowedOrigins.add('http://localhost:3000')
+allowedOrigins.add('http://localhost:5000')
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    // allow requests with no origin (like curl, server-to-server)
+    if (!origin) return callback(null, true)
+    const cleaned = origin.replace(/\/$/, '')
+    if (allowedOrigins.has(cleaned)) return callback(null, true)
+    callback(new Error('Not allowed by CORS'))
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}))
+}
+
+app.use(cors(corsOptions))
+// ensure preflight (OPTIONS) requests are handled
+app.options('*', cors(corsOptions))
 app.use(express.json())
 app.use(morgan('dev'))
 app.use(requestLogger)
