@@ -17,7 +17,14 @@ dotenv.config()
 const app = express()
 
 // ===== Middleware =====
-app.use(cors())
+// Allow CORS from the configured frontend origin (or allow all in development)
+const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_URL || ''
+app.use(cors({
+  origin: FRONTEND_URL || true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}))
 app.use(express.json())
 app.use(morgan('dev'))
 app.use(requestLogger)
@@ -48,9 +55,29 @@ mongoose
   .connect(MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected')
-    app.listen(PORT, () =>
-      console.log(`🚀 Server running on port ${PORT}`)
-    )
+    const server = app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`)
+        process.exit(1)
+      }
+      console.error('Server error:', err)
+      process.exit(1)
+    })
+
+    const shutdown = () => {
+      console.log('Shutting down gracefully...')
+      server.close(() => {
+        mongoose.connection.close(false, () => {
+          console.log('Mongo connection closed')
+          process.exit(0)
+        })
+      })
+    }
+
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err)
