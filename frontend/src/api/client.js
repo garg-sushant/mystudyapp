@@ -3,6 +3,15 @@ const rawBase = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const BASE_URL = rawBase.replace(/\/$/, '') + '/api'
 console.log('🔥 ACTUAL BASE_URL:', BASE_URL)
 
+// Normalize path so callers can pass '/sessions' or '/api/sessions'
+const normalizePath = (path) => {
+  let p = path || ''
+  if (!p.startsWith('/')) p = '/' + p
+  // remove leading '/api' if present
+  p = p.replace(/^\/api(?=\/|$)/, '')
+  return p || '/'
+}
+
 const handleResponse = async (res) => {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
