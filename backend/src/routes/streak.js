@@ -76,7 +76,7 @@ export async function processStreakForUser(userId, { mode = 'yesterday', TaskMod
   return user.streak || 0
 }
 
-// GET /api/streak
+// GET /streak
 // Checks yesterday's tasks and updates user's streak accordingly.
 router.get('/', async (req, res) => {
   try {

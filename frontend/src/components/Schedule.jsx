@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { Card, Button, Modal, Form, ListGroup, ProgressBar, Alert } from 'react-bootstrap'
-import { addTask, updateTask, deleteTask, setTasks } from '../redux/slices/scheduleSlice'
+import {
+  Card,
+  Button,
+  Modal,
+  Form,
+  ListGroup,
+  ProgressBar,
+  Alert
+} from 'react-bootstrap'
+import {
+  addTask,
+  updateTask,
+  deleteTask,
+  setTasks
+} from '../redux/slices/scheduleSlice'
 import { api } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '../redux/slices/authSlice'
@@ -9,13 +22,16 @@ import { logout } from '../redux/slices/authSlice'
 const Schedule = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+
   const { tasks } = useSelector(state => state.schedule)
   const { subjects } = useSelector(state => state.goals)
   const { token } = useSelector(state => state.auth)
+
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -24,12 +40,16 @@ const Schedule = () => {
     duration: ''
   })
 
-  // Initial load from backend
+  // ===== INITIAL LOAD =====
   useEffect(() => {
     if (!token) return
+
     api.get('/tasks')
       .then(data => {
-        const normalized = data.map(t => ({ ...t, id: t._id || t.id }))
+        const normalized = data.map(t => ({
+          ...t,
+          id: t._id || t.id
+        }))
         dispatch(setTasks(normalized))
       })
       .catch(err => {
@@ -43,24 +63,41 @@ const Schedule = () => {
 
   const pendingTasks = tasks.filter(task => !task.completed)
   const completedTasks = tasks.filter(task => task.completed)
-  const totalTasks = tasks.length
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0
 
+  const totalTasks = tasks.length
+  const completionRate =
+    totalTasks > 0
+      ? Math.round((completedTasks.length / totalTasks) * 100)
+      : 0
+
+  // ===== ADD / UPDATE TASK =====
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+
     try {
       if (editingTask) {
-        const payload = { ...formData }
-        const updated = await api.put(`/tasks/${editingTask._id || editingTask.id}`, payload)
-        dispatch(updateTask({ id: updated._id || updated.id, updates: updated }))
-        handleClose()
+        const updated = await api.put(
+          `/tasks/${editingTask._id || editingTask.id}`,
+          { ...formData }
+        )
+        dispatch(
+          updateTask({
+            id: updated._id || updated.id,
+            updates: updated
+          })
+        )
       } else {
         const created = await api.post('/tasks', formData)
-        dispatch(addTask({ ...created, id: created._id || created.id }))
-        handleClose()
+        dispatch(
+          addTask({
+            ...created,
+            id: created._id || created.id
+          })
+        )
       }
+      handleClose()
     } catch (err) {
       console.error('Failed to save task', err)
       setError(err.message || 'Failed to save task. Please try again.')
@@ -73,7 +110,13 @@ const Schedule = () => {
     setShowModal(false)
     setEditingTask(null)
     setError('')
-    setFormData({ title: '', description: '', progress: 0, subject: subjects[0] || '', duration: '' })
+    setFormData({
+      title: '',
+      description: '',
+      progress: 0,
+      subject: subjects[0] || '',
+      duration: ''
+    })
   }
 
   const handleEdit = (task) => {
@@ -88,28 +131,46 @@ const Schedule = () => {
     setShowModal(true)
   }
 
+  // ===== DELETE TASK =====
   const handleDelete = (taskId) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      api.del(`/tasks/${taskId}`)
-        .then(() => dispatch(deleteTask(taskId)))
-        .catch(err => console.error('Failed to delete task', err))
-    }
+    if (!window.confirm('Are you sure you want to delete this task?')) return
+
+    api.del(`/tasks/${taskId}`)
+      .then(() => dispatch(deleteTask(taskId)))
+      .catch(err => console.error('Failed to delete task', err))
   }
 
+  // ===== TOGGLE COMPLETE + UPDATE STREAK =====
   const handleToggleComplete = (task) => {
-    const updates = { completed: !task.completed }
-    api.put(`/tasks/${task._id || task.id}`, updates)
+    api.put(`/tasks/${task._id || task.id}`, {
+      completed: !task.completed
+    })
       .then(updated => {
-        dispatch(updateTask({ id: updated._id || updated.id, updates: updated }))
+        dispatch(
+          updateTask({
+            id: updated._id || updated.id,
+            updates: updated
+          })
+        )
+        // ✅ CORRECT for your BASE_URL
         api.get('/streak?mode=today').catch(() => {})
       })
       .catch(err => console.error('Failed to toggle complete', err))
   }
 
+  // ===== UPDATE PROGRESS =====
   const handleProgressUpdate = (task, newProgress) => {
-    const updates = { progress: Math.min(100, Math.max(0, newProgress)) }
-    api.put(`/tasks/${task._id || task.id}`, updates)
-      .then(updated => dispatch(updateTask({ id: updated._id || updated.id, updates: updated })))
+    api.put(`/tasks/${task._id || task.id}`, {
+      progress: Math.min(100, Math.max(0, newProgress))
+    })
+      .then(updated =>
+        dispatch(
+          updateTask({
+            id: updated._id || updated.id,
+            updates: updated
+          })
+        )
+      )
       .catch(err => console.error('Failed to update progress', err))
   }
 
@@ -123,37 +184,52 @@ const Schedule = () => {
               + Add Task
             </Button>
           </div>
+
           <div className="mb-3">
             <ProgressBar now={completionRate} max={100} label={`${completionRate}%`} />
             <div className="text-muted mt-2" style={{ fontSize: '0.95rem' }}>
               {completedTasks.length} of {totalTasks} tasks completed
             </div>
           </div>
+
           <div className="row" style={{ gap: '2rem 0' }}>
+            {/* Pending Tasks */}
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Pending Tasks</h4>
               <ListGroup>
                 {pendingTasks.length === 0 && (
-                  <ListGroup.Item className="text-center text-muted">No pending tasks.</ListGroup.Item>
+                  <ListGroup.Item className="text-center text-muted">
+                    No pending tasks.
+                  </ListGroup.Item>
                 )}
                 {pendingTasks.map(task => (
-                  <ListGroup.Item key={task.id} className="d-flex justify-content-between align-items-center">
+                  <ListGroup.Item
+                    key={task.id}
+                    className="d-flex justify-content-between align-items-center"
+                  >
                     <div>
                       <div style={{ fontWeight: 500 }}>{task.title}</div>
                       {task.description && (
-                        <div className="text-muted small">{task.description}</div>
+                        <div className="text-muted small">
+                          {task.description}
+                        </div>
                       )}
                       <div className="d-flex align-items-center gap-2 mt-1">
-                        <ProgressBar 
-                          now={task.progress || 0} 
-                          max={100} 
-                          style={{ width: 120, height: 8 }} 
+                        <ProgressBar
+                          now={task.progress || 0}
+                          max={100}
+                          style={{ width: 120, height: 8 }}
                           variant="info"
                         />
-                        <span style={{ fontSize: 12 }}>{task.progress || 0}%</span>
+                        <span style={{ fontSize: 12 }}>
+                          {task.progress || 0}%
+                        </span>
                       </div>
-                      <div className="text-muted small mt-1">Subject: {task.subject || '-'} | Duration: {task.duration || '-'} min</div>
+                      <div className="text-muted small mt-1">
+                        Subject: {task.subject || '-'} | Duration: {task.duration || '-'} min
+                      </div>
                     </div>
+
                     <div className="d-flex flex-column gap-1 align-items-end">
                       <Button size="sm" variant="success" onClick={() => handleToggleComplete(task)}>
                         Complete
@@ -164,7 +240,13 @@ const Schedule = () => {
                       <Button size="sm" variant="outline-danger" onClick={() => handleDelete(task.id)}>
                         Delete
                       </Button>
-                      <Button size="sm" variant="outline-info" onClick={() => handleProgressUpdate(task, (task.progress || 0) + 10)}>
+                      <Button
+                        size="sm"
+                        variant="outline-info"
+                        onClick={() =>
+                          handleProgressUpdate(task, (task.progress || 0) + 10)
+                        }
+                      >
                         +10%
                       </Button>
                     </div>
@@ -172,29 +254,40 @@ const Schedule = () => {
                 ))}
               </ListGroup>
             </div>
+
+            {/* Completed Tasks */}
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Completed Tasks</h4>
               <ListGroup>
                 {completedTasks.length === 0 && (
-                  <ListGroup.Item className="text-center text-muted">No completed tasks yet.</ListGroup.Item>
+                  <ListGroup.Item className="text-center text-muted">
+                    No completed tasks yet.
+                  </ListGroup.Item>
                 )}
                 {completedTasks.map(task => (
-                  <ListGroup.Item key={task.id} className="d-flex justify-content-between align-items-center">
+                  <ListGroup.Item
+                    key={task.id}
+                    className="d-flex justify-content-between align-items-center"
+                  >
                     <div>
                       <div style={{ fontWeight: 500 }}>{task.title}</div>
                       {task.description && (
-                        <div className="text-muted small">{task.description}</div>
+                        <div className="text-muted small">
+                          {task.description}
+                        </div>
                       )}
                       <div className="d-flex align-items-center gap-2 mt-1">
-                        <ProgressBar 
-                          now={100} 
-                          max={100} 
-                          style={{ width: 120, height: 8 }} 
+                        <ProgressBar
+                          now={100}
+                          max={100}
+                          style={{ width: 120, height: 8 }}
                           variant="success"
                         />
                         <span style={{ fontSize: 12 }}>100%</span>
                       </div>
-                      <div className="text-muted small mt-1">Subject: {task.subject || '-'} | Duration: {task.duration || '-'} min</div>
+                      <div className="text-muted small mt-1">
+                        Subject: {task.subject || '-'} | Duration: {task.duration || '-'} min
+                      </div>
                     </div>
                     <div className="d-flex flex-column gap-1 align-items-end">
                       <Button size="sm" variant="secondary" onClick={() => handleToggleComplete(task)}>
@@ -209,67 +302,90 @@ const Schedule = () => {
         </Card.Body>
       </Card>
 
-      {/* Add/Edit Task Modal */}
+      {/* Add / Edit Modal */}
       <Modal show={showModal} onHide={handleClose}>
         <Modal.Header closeButton>
-          <Modal.Title>{editingTask ? 'Edit Task' : 'Add New Task'}</Modal.Title>
+          <Modal.Title>
+            {editingTask ? 'Edit Task' : 'Add New Task'}
+          </Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             {error && (
-              <Alert variant="danger" onClose={() => setError('')} dismissible>
+              <Alert
+                variant="danger"
+                onClose={() => setError('')}
+                dismissible
+              >
                 {error}
               </Alert>
             )}
+
             <Form.Group className="mb-3">
               <Form.Label>Task Title *</Form.Label>
               <Form.Control
                 type="text"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={e =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 required
                 disabled={loading}
               />
             </Form.Group>
+
             <Form.Group className="mb-3">
               <Form.Label>Description</Form.Label>
               <Form.Control
                 as="textarea"
                 rows={2}
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={e =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 disabled={loading}
               />
             </Form.Group>
+
             <Form.Group className="mb-3">
               <Form.Label>Subject</Form.Label>
               <Form.Select
                 value={formData.subject}
-                onChange={e => setFormData({ ...formData, subject: e.target.value })}
+                onChange={e =>
+                  setFormData({ ...formData, subject: e.target.value })
+                }
                 required
                 disabled={loading}
               >
-                {subjects.map(subj => <option key={subj} value={subj}>{subj}</option>)}
+                {subjects.map(subj => (
+                  <option key={subj} value={subj}>
+                    {subj}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Group>
+
             <Form.Group className="mb-3">
               <Form.Label>Duration (min)</Form.Label>
               <Form.Control
                 type="number"
                 min="1"
                 value={formData.duration}
-                onChange={e => setFormData({ ...formData, duration: e.target.value })}
+                onChange={e =>
+                  setFormData({ ...formData, duration: e.target.value })
+                }
                 required
                 disabled={loading}
               />
             </Form.Group>
           </Modal.Body>
+
           <Modal.Footer>
             <Button variant="secondary" onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" disabled={loading}>
-              {loading ? 'Saving...' : (editingTask ? 'Update Task' : 'Add Task')}
+              {loading ? 'Saving...' : editingTask ? 'Update Task' : 'Add Task'}
             </Button>
           </Modal.Footer>
         </Form>
@@ -278,4 +394,4 @@ const Schedule = () => {
   )
 }
 
-export default Schedule 
+export default Schedule
