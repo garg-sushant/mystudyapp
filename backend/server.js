@@ -88,18 +88,21 @@ mongoose
       process.exit(1)
     })
 
-    const shutdown = () => {
+    const shutdown = async () => {
       console.log('Shutting down gracefully...')
-      server.close(() => {
-        mongoose.connection.close(false, () => {
-          console.log('Mongo connection closed')
-          process.exit(0)
-        })
-      })
+      try {
+        await new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()))
+        await mongoose.connection.close()
+        console.log('Mongo connection closed')
+        process.exit(0)
+      } catch (err) {
+        console.error('Error during shutdown', err)
+        process.exit(1)
+      }
     }
 
-    process.on('SIGINT', shutdown)
-    process.on('SIGTERM', shutdown)
+    process.on('SIGINT', () => { shutdown().catch(() => {}) })
+    process.on('SIGTERM', () => { shutdown().catch(() => {}) })
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err)
