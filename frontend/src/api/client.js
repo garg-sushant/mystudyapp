@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const rawBase = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+// ensure the base URL ends with '/api'
+const BASE_URL = rawBase.replace(/\/$/, '') + '/api'
 console.log('🔥 ACTUAL BASE_URL:', BASE_URL)
 
 const handleResponse = async (res) => {
