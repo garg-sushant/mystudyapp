@@ -22,7 +22,9 @@ const FRONTEND_URLS = process.env.FRONTEND_URLS || ''
 
 const allowedOrigins = new Set()
 
-if (FRONTEND_URL) allowedOrigins.add(FRONTEND_URL.replace(/\/$/, ''))
+if (FRONTEND_URL) {
+  allowedOrigins.add(FRONTEND_URL.replace(/\/$/, ''))
+}
 
 if (FRONTEND_URLS) {
   FRONTEND_URLS.split(',')
@@ -31,7 +33,7 @@ if (FRONTEND_URLS) {
     .forEach(u => allowedOrigins.add(u.replace(/\/$/, '')))
 }
 
-// ✅ FIX 1: allow localhost dynamically (any port)
+// allow localhost (dev)
 const isLocalhost = (origin) => /^http:\/\/localhost:\d+$/.test(origin)
 
 // ===== CORS OPTIONS =====
@@ -45,8 +47,10 @@ const corsOptions = {
       return callback(null, true)
     }
 
-    // ❗ FIX 2: don't throw error → send proper CORS response
-    return callback(null, false)
+    console.log('❌ Blocked by CORS:', cleaned)
+
+    // ✅ FIX: send proper error instead of silently blocking
+    return callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
