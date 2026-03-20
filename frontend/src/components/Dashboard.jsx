@@ -11,22 +11,28 @@ import { useState } from 'react'
 const Dashboard = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { tasks, studySessions, currentSession } = useSelector(state => state.schedule)
-  const { goals, subjects } = useSelector(state => state.goals)
-  const { productivityScore, subjectStats } = useSelector(state => state.analytics)
-  const { token } = useSelector(state => state.auth)
-  // Default goals since settings are removed
-  const dailyGoal = 120 // 2 hours default
-  const weeklyGoal = 840 // 14 hours default
-  const [sessionForm, setSessionForm] = useState({ subject: subjects[0] || '', duration: '', topic: '' })
 
-  // Load study sessions from backend
+  const { tasks = [], studySessions = [], currentSession } = useSelector(state => state.schedule || {})
+  const { goals = [], subjects = [] } = useSelector(state => state.goals || {})
+  const { productivityScore = 0, subjectStats = {} } = useSelector(state => state.analytics || {})
+  const { token } = useSelector(state => state.auth || {})
+
+  const dailyGoal = 120
+  const weeklyGoal = 840
+
+  const [sessionForm, setSessionForm] = useState({ subject: '', duration: '', topic: '' })
+
+  useEffect(() => {
+    if (subjects.length > 0) {
+      setSessionForm(f => ({ ...f, subject: subjects[0] }))
+    }
+  }, [subjects])
+
   useEffect(() => {
     if (!token) return
     const loadSessions = async () => {
       try {
         const data = await api.get('/sessions')
-        // Normalize data and ensure duration is a number
         const normalized = data.map(s => ({ 
           ...s, 
           id: s._id || s.id,
@@ -66,7 +72,6 @@ const Dashboard = () => {
         endTime: new Date().toISOString()
       }
       const created = await api.post('/sessions', sessionData)
-      // Normalize and ensure proper data types
       const normalizedSession = { 
         ...created, 
         id: created._id || created.id, 
@@ -75,22 +80,12 @@ const Dashboard = () => {
       }
       dispatch(addStudySession(normalizedSession))
       setSessionForm({ subject: subjects[0] || '', duration: '', topic: '' })
-      // Reload sessions from backend to ensure sync
-      const updatedData = await api.get('/sessions')
-      const normalized = updatedData.map(s => ({ 
-        ...s, 
-        id: s._id || s.id,
-        duration: Number(s.duration) || 0,
-        startTime: s.startTime || s.createdAt || new Date().toISOString()
-      }))
-      dispatch(setStudySessions(normalized))
     } catch (err) {
       console.error('Failed to save study session', err)
       alert(err.message || 'Failed to save study session. Please try again.')
     }
   }
 
-  // Calculate today's study time
   const todayTime = useMemo(() => {
     if (!studySessions || studySessions.length === 0) return 0
     const today = new Date().toISOString().split('T')[0]
@@ -107,7 +102,6 @@ const Dashboard = () => {
     }, 0)
   }, [studySessions])
   
-  // Calculate weekly study time (last 7 days)
   const weeklyStudyTime = useMemo(() => {
     if (!studySessions || studySessions.length === 0) return 0
     const now = new Date()
@@ -131,7 +125,6 @@ const Dashboard = () => {
   const activeGoals = goals.filter(goal => !goal.completed)
   const completedGoals = goals.filter(goal => goal.completed)
 
-  // Calculate total study time from all study sessions - ensure proper numeric conversion
   const totalStudyTime = useMemo(() => {
     if (!studySessions || !Array.isArray(studySessions) || studySessions.length === 0) return 0
     return studySessions.reduce((sum, session) => {
@@ -143,19 +136,16 @@ const Dashboard = () => {
   const getStudySuggestions = () => {
     const suggestions = []
     
-    // Suggest subjects with less study time
     const subjectTimes = Object.entries(subjectStats).sort((a, b) => a[1].totalTime - b[1].totalTime)
     if (subjectTimes.length > 0) {
       suggestions.push(`Focus on ${subjectTimes[0][0]} - you've spent less time on it`)
     }
     
-    // Suggest based on pending tasks
     if (pendingTasks.length > 0) {
       const urgentTask = pendingTasks[0]
       suggestions.push(`Complete: ${urgentTask.title}`)
     }
     
-    // Suggest based on goals
     if (activeGoals.length > 0) {
       const lowProgressGoal = activeGoals.sort((a, b) => a.progress - b.progress)[0]
       suggestions.push(`Work on goal: ${lowProgressGoal.title} (${lowProgressGoal.progress}% complete)`)
@@ -163,6 +153,8 @@ const Dashboard = () => {
     
     return suggestions.slice(0, 3)
   }
+
+  const suggestions = useMemo(() => getStudySuggestions(), [subjectStats, pendingTasks, activeGoals])
 
   const formatTime = (minutes) => {
     const hours = Math.floor(minutes / 60)
@@ -174,8 +166,6 @@ const Dashboard = () => {
     <div className="container-fluid">
       <h1 className="mb-4">🏠 Dashboard</h1>
       
-      
-      {/* Productivity Score Card */}
       <Row className="mb-4">
         <Col md={6} lg={3}>
           <Card className="text-center h-100 shadow-sm">
@@ -198,7 +188,7 @@ const Dashboard = () => {
               <Card.Title>Today's Study Time</Card.Title>
               <div className="display-6 text-success fw-bold">{formatTime(todayTime)}</div>
               <ProgressBar 
-                now={(todayTime / dailyGoal) * 100} 
+                now={dailyGoal > 0 ? Math.min((todayTime / dailyGoal) * 100, 100) : 0}
                 max={100} 
                 className="mt-2"
                 variant={todayTime >= dailyGoal ? 'success' : 'info'}
@@ -239,7 +229,6 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Quick Actions and Suggestions */}
       <Row className="mb-4">
         <Col lg={8}>
           <Card className="shadow-sm">
@@ -299,13 +288,13 @@ const Dashboard = () => {
             </Card.Header>
             <Card.Body>
               <ListGroup variant="flush">
-                {getStudySuggestions().map((suggestion, index) => (
+                {suggestions.map((suggestion, index) => (
                   <ListGroup.Item key={index} className="border-0">
                     <small>• {suggestion}</small>
                   </ListGroup.Item>
                 ))}
               </ListGroup>
-              {getStudySuggestions().length === 0 && (
+              {suggestions.length === 0 && (
                 <p className="text-muted small">Great job! Keep up the good work!</p>
               )}
             </Card.Body>
@@ -313,7 +302,6 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* How to Update Progress */}
       <Row className="mb-4">
         <Col>
           <Card className="shadow-sm">
@@ -351,7 +339,6 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Subject Performance */}
       <Row>
         <Col>
           <Card className="shadow-sm">
@@ -383,4 +370,4 @@ const Dashboard = () => {
   )
 }
 
-export default Dashboard 
+export default Dashboard

@@ -9,8 +9,10 @@ import { logout } from '../redux/slices/authSlice'
 const Goals = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { goals } = useSelector(state => state.goals)
-  const { token } = useSelector(state => state.auth)
+
+  const { goals = [] } = useSelector(state => state.goals || {})
+  const { token } = useSelector(state => state.auth || {})
+
   const [showModal, setShowModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
   const [error, setError] = useState('')
@@ -21,7 +23,6 @@ const Goals = () => {
     progress: 0
   })
 
-  // Initial load from backend
   useEffect(() => {
     if (!token) return
     api.get('/goals')
@@ -122,6 +123,7 @@ const Goals = () => {
               {completedGoals.length} of {totalGoals} goals completed
             </div>
           </div>
+
           <div className="row" style={{ gap: '2rem 0' }}>
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Pending Goals</h4>
@@ -138,7 +140,7 @@ const Goals = () => {
                       )}
                       <div className="d-flex align-items-center gap-2 mt-1">
                         <ProgressBar 
-                          now={goal.progress || 0} 
+                          now={Math.min(Math.max(goal.progress || 0, 0), 100)} 
                           max={100} 
                           style={{ width: 120, height: 8 }} 
                           variant="info"
@@ -164,6 +166,7 @@ const Goals = () => {
                 ))}
               </ListGroup>
             </div>
+
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Completed Goals</h4>
               <ListGroup>
@@ -200,7 +203,6 @@ const Goals = () => {
         </Card.Body>
       </Card>
 
-      {/* Add/Edit Goal Modal */}
       <Modal show={showModal} onHide={handleClose}>
         <Modal.Header closeButton>
           <Modal.Title>{editingGoal ? 'Edit Goal' : 'Add New Goal'}</Modal.Title>
@@ -247,4 +249,4 @@ const Goals = () => {
   )
 }
 
-export default Goals 
+export default Goals

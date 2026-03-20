@@ -3,13 +3,10 @@ import bcrypt from 'bcryptjs'
 
 const UserSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true, trim: true }, // ✅ trim added
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, minlength: 6 }
-    ,
-    // Streak tracking: number of consecutive days the user completed all assigned tasks
+    password: { type: String, required: true, minlength: 6 },
     streak: { type: Number, default: 0 },
-    // Date when streak was last processed (stored as midnight local server time)
     lastStreakProcessed: { type: Date }
   },
   { timestamps: true }
@@ -26,8 +23,12 @@ UserSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password)
 }
 
+// ❗ IMPORTANT: never return password in queries
+UserSchema.set('toJSON', {
+  transform: function (doc, ret) {
+    delete ret.password
+    return ret
+  }
+})
+
 export default mongoose.model('User', UserSchema)
-
-
-
-

@@ -23,9 +23,9 @@ const Schedule = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
-  const { tasks } = useSelector(state => state.schedule)
-  const { subjects } = useSelector(state => state.goals)
-  const { token } = useSelector(state => state.auth)
+  const { tasks = [] } = useSelector(state => state.schedule || {})
+  const { subjects = [] } = useSelector(state => state.goals || {})
+  const { token } = useSelector(state => state.auth || {})
 
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
@@ -36,11 +36,16 @@ const Schedule = () => {
     title: '',
     description: '',
     progress: 0,
-    subject: subjects[0] || '',
+    subject: '',
     duration: ''
   })
 
-  // ===== INITIAL LOAD =====
+  useEffect(() => {
+    if (subjects.length > 0) {
+      setFormData(f => ({ ...f, subject: subjects[0] }))
+    }
+  }, [subjects])
+
   useEffect(() => {
     if (!token) return
 
@@ -70,7 +75,6 @@ const Schedule = () => {
       ? Math.round((completedTasks.length / totalTasks) * 100)
       : 0
 
-  // ===== ADD / UPDATE TASK =====
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -131,7 +135,6 @@ const Schedule = () => {
     setShowModal(true)
   }
 
-  // ===== DELETE TASK =====
   const handleDelete = (taskId) => {
     if (!window.confirm('Are you sure you want to delete this task?')) return
 
@@ -140,7 +143,6 @@ const Schedule = () => {
       .catch(err => console.error('Failed to delete task', err))
   }
 
-  // ===== TOGGLE COMPLETE + UPDATE STREAK =====
   const handleToggleComplete = (task) => {
     api.put(`/tasks/${task._id || task.id}`, {
       completed: !task.completed
@@ -152,13 +154,11 @@ const Schedule = () => {
             updates: updated
           })
         )
-        // ✅ CORRECT for your BASE_URL
         api.get('/streak?mode=today').catch(() => {})
       })
       .catch(err => console.error('Failed to toggle complete', err))
   }
 
-  // ===== UPDATE PROGRESS =====
   const handleProgressUpdate = (task, newProgress) => {
     api.put(`/tasks/${task._id || task.id}`, {
       progress: Math.min(100, Math.max(0, newProgress))
@@ -193,7 +193,6 @@ const Schedule = () => {
           </div>
 
           <div className="row" style={{ gap: '2rem 0' }}>
-            {/* Pending Tasks */}
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Pending Tasks</h4>
               <ListGroup>
@@ -216,7 +215,7 @@ const Schedule = () => {
                       )}
                       <div className="d-flex align-items-center gap-2 mt-1">
                         <ProgressBar
-                          now={task.progress || 0}
+                          now={Math.min(Math.max(task.progress || 0, 0), 100)}
                           max={100}
                           style={{ width: 120, height: 8 }}
                           variant="info"
@@ -255,7 +254,6 @@ const Schedule = () => {
               </ListGroup>
             </div>
 
-            {/* Completed Tasks */}
             <div className="col-md-6" style={{ minWidth: 320 }}>
               <h4 className="mb-3">Completed Tasks</h4>
               <ListGroup>
@@ -302,7 +300,6 @@ const Schedule = () => {
         </Card.Body>
       </Card>
 
-      {/* Add / Edit Modal */}
       <Modal show={showModal} onHide={handleClose}>
         <Modal.Header closeButton>
           <Modal.Title>

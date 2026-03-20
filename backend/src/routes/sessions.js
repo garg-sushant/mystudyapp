@@ -13,11 +13,12 @@ router.post('/', async (req, res) => {
 })
 
 router.get('/', async (req, res) => {
-  const sessions = await StudySession.find({ userId: req.user.id }).sort({ createdAt: -1 })
-  res.json(sessions)
+  try { // ✅ added error handling
+    const sessions = await StudySession.find({ userId: req.user.id }).sort({ createdAt: -1 })
+    res.json(sessions)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch sessions' })
+  }
 })
 
 export default router
-
-
-

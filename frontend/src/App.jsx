@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Provider } from 'react-redux'
 import { store } from './redux/store'
 import AppNavbar from './components/Navbar'
@@ -21,6 +21,7 @@ function App() {
           <main>
             <Routes>
               <Route path="/login" element={<Login />} />
+
               <Route
                 path="/"
                 element={
@@ -29,6 +30,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/schedule"
                 element={
@@ -37,6 +39,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/goals"
                 element={
@@ -45,6 +48,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/analytics"
                 element={
@@ -53,6 +57,9 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              {/* ✅ fallback route */}
+              <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
           <Footer />

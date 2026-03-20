@@ -17,27 +17,36 @@ dotenv.config()
 const app = express()
 
 // ===== Middleware =====
-// Safe dynamic CORS: allow explicit FRONTEND_URL(s) and localhost for dev.
-// Set FRONTEND_URL (single) or FRONTEND_URLS (comma-separated) in production.
 const FRONTEND_URL = process.env.FRONTEND_URL || ''
 const FRONTEND_URLS = process.env.FRONTEND_URLS || ''
-const allowedOrigins = new Set()
-if (FRONTEND_URL) allowedOrigins.add(FRONTEND_URL.replace(/\/$/, ''))
-if (FRONTEND_URLS) {
-  FRONTEND_URLS.split(',').map(s => s.trim()).filter(Boolean).forEach(u => allowedOrigins.add(u.replace(/\/$/, '')))
-}
-// always allow common localhost origins for developer convenience
-allowedOrigins.add('http://localhost:5173')
-allowedOrigins.add('http://localhost:3000')
-allowedOrigins.add('http://localhost:5000')
 
+const allowedOrigins = new Set()
+
+if (FRONTEND_URL) allowedOrigins.add(FRONTEND_URL.replace(/\/$/, ''))
+
+if (FRONTEND_URLS) {
+  FRONTEND_URLS.split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .forEach(u => allowedOrigins.add(u.replace(/\/$/, '')))
+}
+
+// ✅ FIX 1: allow localhost dynamically (any port)
+const isLocalhost = (origin) => /^http:\/\/localhost:\d+$/.test(origin)
+
+// ===== CORS OPTIONS =====
 const corsOptions = {
-  origin: function(origin, callback) {
-    // allow requests with no origin (like curl, server-to-server)
+  origin: function (origin, callback) {
     if (!origin) return callback(null, true)
+
     const cleaned = origin.replace(/\/$/, '')
-    if (allowedOrigins.has(cleaned)) return callback(null, true)
-    callback(new Error('Not allowed by CORS'))
+
+    if (allowedOrigins.has(cleaned) || isLocalhost(cleaned)) {
+      return callback(null, true)
+    }
+
+    // ❗ FIX 2: don't throw error → send proper CORS response
+    return callback(null, false)
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -45,8 +54,8 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
-// ensure preflight (OPTIONS) requests are handled
 app.options('*', cors(corsOptions))
+
 app.use(express.json())
 app.use(morgan('dev'))
 app.use(requestLogger)
@@ -56,7 +65,7 @@ app.get('/', (_, res) => {
   res.json({ status: 'ok', message: 'Study Planner API running' })
 })
 
-// ===== API ROUTES (FIXED) =====
+// ===== API ROUTES =====
 app.use('/api/auth', authRouter)
 app.use('/api/tasks', auth, tasksRouter)
 app.use('/api/goals', auth, goalsRouter)
@@ -77,7 +86,10 @@ mongoose
   .connect(MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected')
-    const server = app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
+
+    const server = app.listen(PORT, () =>
+      console.log(`🚀 Server running on port ${PORT}`)
+    )
 
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
@@ -91,7 +103,9 @@ mongoose
     const shutdown = async () => {
       console.log('Shutting down gracefully...')
       try {
-        await new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()))
+        await new Promise((resolve, reject) =>
+          server.close(err => (err ? reject(err) : resolve()))
+        )
         await mongoose.connection.close()
         console.log('Mongo connection closed')
         process.exit(0)
@@ -101,8 +115,8 @@ mongoose
       }
     }
 
-    process.on('SIGINT', () => { shutdown().catch(() => {}) })
-    process.on('SIGTERM', () => { shutdown().catch(() => {}) })
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err)

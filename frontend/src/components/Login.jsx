@@ -9,7 +9,7 @@ import { updateProductivityScore } from '../redux/slices/analyticsSlice'
 const Login = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const [mode, setMode] = useState('login') // 'login' or 'register'
+  const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,16 +28,17 @@ const Login = () => {
       const payload = mode === 'login'
         ? { email: form.email, password: form.password }
         : { name: form.name, email: form.email, password: form.password }
+
       const res = await api.post(path, payload)
+
       if (mode === 'login') {
         dispatch(setCredentials(res))
         navigate('/schedule')
       } else {
-        // Clear persisted state to avoid stale analytics values
         localStorage.removeItem('studyPlannerState')
         dispatch(updateProductivityScore(0))
-        // ensure the component switches back to login mode before navigating
         setMode('login')
+        setForm({ name: '', email: '', password: '' }) // ✅ reset form
         navigate('/login')
       }
     } catch (err) {
@@ -86,7 +87,3 @@ const Login = () => {
 }
 
 export default Login
-
-
-
-
